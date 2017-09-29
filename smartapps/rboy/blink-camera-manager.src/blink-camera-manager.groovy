@@ -11,17 +11,18 @@
 */ 
 
 def clientVersion() {
-    return "05.08.00"
+    return "05.08.01"
 }
 
 def releaseTimeStamp() { //YYYYMMDDHHSS
-    return "201701121100"
+    return "201706231300"
 }
 
 /**
 *  Blink Camera Service Configuration Manager
 *
-* Copyright RBoy, redistribution of code is not allowed without permission
+* Copyright RBoy Apps, redistribution of code is not allowed without permission
+* 2017-5-23 - (v05.08.01) Patch for changes in API's related signal and camera
 * 2017-1-12 - (v5.8.0) Updated URLs to new blink infrastructure and use the new registration mechanism
 * 2016-11-16 - Updated video recording length to a maximum of 120 seconds
 * 2016-10-23 - Added ability to check for new code versions automatically once a week
@@ -108,7 +109,7 @@ def releaseTimeStamp() { //YYYYMMDDHHSS
 definition(
     name: "Blink Camera Manager",
     namespace: "rboy",
-    author: "RBoy",
+    author: "RBoy Apps",
     description: "Install, configure and manage your Blink cameras",
     category: "Safety & Security",
     iconUrl: "http://smartthings.rboyapps.com/images/Blink.jpg",
@@ -216,7 +217,7 @@ def motionSecurityPage() {
     dynamicPage(name: "motionSecurityPage", title: "Camera Armed and Motion Detected Actions", install: false, uninstall: false) {    
         section("", hidden: ((recipients || sms || push || alarms || alarmSilent || lights || picture) ? false : true), hideable: false) {
             input("recipients", "contact", title: "Send notifications to", multiple: true, required: false) {
-                paragraph title: "Notifications", "You can enter multiple phone numbers to send an SMS to by separating them with a '+'. E.g. 5551234567+4447654321"
+                paragraph title: "Notifications", "You can enter multiple phone numbers to send an SMS to by separating them with a '*'. E.g. 5551234567*4447654321"
                 input "sms", "phone", title: "Send SMS Notification to (optional)", required: false
                 input "push", "bool", title: "Send Push Notification", required: false
             }
@@ -902,7 +903,7 @@ def turnOffLights() {
 
 private sendText(number, message) {
     if (number) {
-        def phones = number.split("\\+")
+        def phones = number.split("\\*")
         for (phone in phones) {
             sendSms(phone, message)
         }
@@ -1040,7 +1041,7 @@ private login(child) {
 private queryBlink(path, child = null) {
     def response = null
     try {
-        log.trace "Querying Blink: $path"
+        //log.trace "Querying Blink: $path"
         //child?.log "Querying Blink: $path"
         //log.warn "Saved Auth Token: $atomicState.authToken, BaseServer = $atomicState.baseServer" // DEBUG
         //child?.log "Saved Auth Token: $atomicState.authToken, BaseServer = $atomicState.baseServer", "warn" // DEBUG
@@ -1102,7 +1103,7 @@ private queryBlink(path, child = null) {
 private configureBlink(path, child = null, params = []) {
     def response = null
     try {
-        log.trace "Configuring Blink: $path${params ? " with params $params" : ""}"
+        //log.trace "Configuring Blink: $path${params ? " with params $params" : ""}"
         //child?.log "Configuring Blink: $path${params ? " with params $params" : ""}"
         //log.warn "Saved Auth Token: $atomicState.authToken, BaseServer = $atomicState.baseServer" // DEBUG
         //child?.log "Saved Auth Token: $atomicState.authToken, BaseServer = $atomicState.baseServer", "warn" // DEBUG
@@ -1200,7 +1201,7 @@ private getActiveSTClients(child) {
 // BLINK SERVER BUILDING BLOCKS
 // Check if the command has been successfully completed
 private getCommandStatus(networkId, commandId, child) {
-    log.trace "Getting state of command: $commandId"
+    //log.trace "Getting state of command: $commandId"
     //child?.log "Getting state of command: $commandId"
 
     if (!commandId) {
@@ -1230,7 +1231,7 @@ private getCommandStatus(networkId, commandId, child) {
 
 // Get all sync module network IDs
 private getAllNetworkIDs(child) {
-    log.trace "Getting all Sync Module network ID"
+    //log.trace "Getting all Sync Module network ID"
     //child?.log "Getting all Sync Module network ID"
 
     def networkIds = []
@@ -1250,7 +1251,7 @@ private getAllNetworkIDs(child) {
 
 // Get all sync module network IDs which are armed
 private getAllArmedNetworkIDs(child) {
-    log.trace "Getting all armed Sync Module network ID"
+    //log.trace "Getting all armed Sync Module network ID"
     //child?.log "Getting all armed Sync Module network ID"
 
     def networkIds = []
@@ -1258,8 +1259,8 @@ private getAllArmedNetworkIDs(child) {
         def info = queryBlink("/networks", child)
         networkIds = info.networks.findAll { it.armed } .collect { it.id }
 
-        log.trace "All sync module NetworkIDs: $networkIds"
-        //child?.log "All sync module NetworkIDs: $networkIds"
+        log.trace "All armed sync module NetworkIDs: $networkIds"
+        //child?.log "All armed sync module NetworkIDs: $networkIds"
     } catch (e) {
         log.error "Unable to get all network ids: $e"
         //child?.log "Unable to get all network ids: $e", "error"
@@ -1270,7 +1271,7 @@ private getAllArmedNetworkIDs(child) {
 
 // Get the sync module network ID for a child device
 private getNetworkID(child) {
-    log.trace "Getting ${child.device.displayName} Sync Module network ID"
+    //log.trace "Getting ${child.device.displayName} Sync Module network ID"
     //child?.log "Getting ${child.device.displayName} Sync Module network ID"
 
     if (!child) {
@@ -1290,7 +1291,7 @@ private getNetworkID(child) {
             atomicState."networkID${child.device.deviceNetworkId}" = networkId // Save networkId of Camera for future (performance improvement, each call to Blink is 2-3 seconds) and this is the most used call
         }
     } else {
-        log.trace "${child.device.displayName} saved sync module NetworkID: $networkId"
+        //log.trace "${child.device.displayName} saved sync module NetworkID: $networkId"
         //child?.log "${child.device.displayName} saved sync module NetworkID: $networkId"
     }
 
@@ -1299,7 +1300,7 @@ private getNetworkID(child) {
 
 // Check if the sync module is online and if so return sync module network ID
 private isSyncModuleOnlineGetID(child) {
-    log.trace "Getting Sync Module network ID for Camera ${child.device.displayName}"
+    //log.trace "Getting Sync Module network ID for Camera ${child.device.displayName}"
     //child?.log "Getting Sync Module network ID for Camera ${child.device.displayName}"
 
     def networkId = null
@@ -1326,8 +1327,8 @@ private isSyncModuleOnlineGetID(child) {
             }
         } else {
             networkId = childNetworkId
-            log.trace "Sync module ${info.network.name} NetworkID: $networkId"
-            //child?.log "Sync module ${info.network.name} NetworkID: $networkId"
+            log.trace "Sync module ${info.network.name} online, NetworkID: $networkId"
+            //child?.log "Sync module ${info.network.name} online, NetworkID: $networkId"
             atomicState."syncOfflineMessageSent${childNetworkId}" = false // We are back online
         }
     } catch (e) {
@@ -1340,7 +1341,7 @@ private isSyncModuleOnlineGetID(child) {
 
 // Return map with camera 'name', 'id' and 'network'
 private getBlinkCamerasList(child) {
-    log.trace "Getting Cameras List"
+    //log.trace "Getting Cameras List"
     //child?.log "Getting Cameras List"
 
     def cameras = []
@@ -1349,7 +1350,7 @@ private getBlinkCamerasList(child) {
         def info = queryBlink("/network/$networkId/homescreen", child)
         info?.devices.each { device ->
             if (device.device_type == "camera") {
-                log.trace "Found Camera $device.name with Id $device.device_id and Network $networkId"
+                //log.trace "Found Camera $device.name with Id $device.device_id and Network $networkId"
                 //child?.log "Found Camera $device.name with Id $device.device_id and Network $networkId"
                 cameras << [name: device.name, id: device.device_id as String, network: networkId] // Save just the camera name, id and network
             }
@@ -1363,7 +1364,7 @@ private getBlinkCamerasList(child) {
 
 // Return map with all cameras summary (camera id is stored under device_id)
 private getAllCamerasSummary(child) {
-    log.trace "Getting Cameras Summary"
+    //log.trace "Getting Cameras Summary"
     //child?.log "Getting Cameras Summary"
 
     def cameras = []
@@ -1372,7 +1373,7 @@ private getAllCamerasSummary(child) {
         def info = queryBlink("/network/$networkId/homescreen", child)
         info?.devices.each { device ->
             if (device.device_type == "camera") {
-                log.trace "Found Camera $device.name with Id $device.device_id and Network $networkId"
+                //log.trace "Found Camera $device.name with Id $device.device_id and Network $networkId"
                 //child?.log "Found Camera $device.name with Id $device.device_id and Network $networkId"
                 cameras << device // Add it to the list
             }
@@ -1386,7 +1387,7 @@ private getAllCamerasSummary(child) {
 
 // Get all cameras detailed information
 private getAllCamerasDetails(networkId, child) {
-    log.trace "Getting All Cameras Details"
+    //log.trace "Getting All Cameras Details"
     //child?.log "Getting All Cameras Details"
 
     def cameras = queryBlink("/network/$networkId/cameras", child)
@@ -1403,7 +1404,7 @@ private getAllCamerasDetails(networkId, child) {
 
 // Get specific camera information
 private getCameraDetails(networkId, cameraId, child) {
-    log.trace "Getting Camera $cameraId Details"
+    //log.trace "Getting Camera $cameraId Details"
     //child?.log "Getting Camera $cameraId Details"
 
     def camera = queryBlink("/network/$networkId/camera/$cameraId", child)
@@ -1420,7 +1421,7 @@ private getCameraDetails(networkId, cameraId, child) {
 
 // Get specific camera configuration
 private getCameraConfig(networkId, cameraId, child) {
-    log.trace "Getting Camera $cameraId Configuration"
+    //log.trace "Getting Camera $cameraId Configuration"
     //child?.log "Getting Camera $cameraId Configuration"
 
     def camera = queryBlink("/network/$networkId/camera/$cameraId/config", child)
@@ -1439,7 +1440,7 @@ private getCameraConfig(networkId, cameraId, child) {
 
 // Get specific camera signals information
 private getCameraSignalDetails(networkId, cameraId, child) {
-    log.trace "Getting Camera $cameraId Signal Details"
+    //log.trace "Getting Camera $cameraId Signal Details"
     //child?.log "Getting Camera $cameraId Signal Details"
 
     def signal = queryBlink("/network/$networkId/camera/$cameraId/signals", child)
@@ -1451,7 +1452,7 @@ private getCameraSignalDetails(networkId, cameraId, child) {
 
 // Get details of all videos taken from the camera currently on the cloud
 private getCameraVideoDetails(networkId, cameraId, child) {
-    log.trace "Getting All Videos Details for Camera ID $cameraId"
+    //log.trace "Getting All Videos Details for Camera ID $cameraId"
     //child?.log "Getting All Videos Details for Camera ID $cameraId"
 
     def videos = queryBlink("/network/$networkId/camera/$cameraId/videos/unwatched", child)
@@ -1466,7 +1467,7 @@ private getCameraVideoDetails(networkId, cameraId, child) {
 
 // Get the all sync modules network details
 private getNetworkInfo(child) {
-    log.trace "Getting all Sync modules Network Info"
+    //log.trace "Getting all Sync modules Network Info"
     //child?.log "Getting all Sync modules Network Info"
 
     def networkInfo = []
@@ -1480,7 +1481,7 @@ private getNetworkInfo(child) {
 
 // Get all the events for a sync module and all it's connected cameras
 private getAllEventsForSyncModule(networkId, child) {
-    log.trace "Getting All Events for Sync Module $networkId"
+    //log.trace "Getting All Events for Sync Module $networkId"
     //child?.log "Getting All Events for Sync Module $networkId"
 
     // NOTE: This is a very heavy time consuming call
@@ -1499,7 +1500,7 @@ private getAllEventsForSyncModule(networkId, child) {
 
 // Get all the events for a camera
 private getAllEventsForCamera(networkId, cameraId, child) {
-    log.trace "Getting All Events for camera $cameraId"
+    //log.trace "Getting All Events for camera $cameraId"
     //child?.log "Getting All Events for camera $cameraId"
 
     // NOTE: This is a very heavy time consuming call
@@ -1780,7 +1781,7 @@ def Boolean updateCameraSensorStatus(child, retryCount = 1) {
     //}
 
     // Get the camera Battery status
-    def battery = camera.battery_level as Float
+    def battery = camera.battery_voltage as Float
     log.trace "Got camera $camera.camera_id -> raw battery level ${battery.round()}, ${(battery*0.02).round(2)}v"
     //child?.log "Got camera $camera.camera_id -> raw battery level ${battery.round()}, ${(battery*0.02).round(2)}v"
     battery = ((battery - 110) / (1.70 - 1.10)).round() // Max battery level is 170 (3.4v) and dead battery level is 110 (2.2v) (http://data.energizer.com/PDFs/lithiuml91l92_appman.pdf)
@@ -1816,14 +1817,14 @@ def Boolean updateCameraSensorStatus(child, retryCount = 1) {
     //events << [name:"lfr", value:lfr]
 
     // Get last time the sensor data was updated
-    def lastUpdate = camera.updated_at
-    log.trace "Got camera $camera.camera_id -> Last sensor update $lastUpdate"
+    //def lastUpdate = signal.updated_at
+    //log.trace "Got camera $camera.camera_id -> Last sensor update $lastUpdate"
     //child?.log "Got camera $camera.camera_id -> Last sensor update $lastUpdate"
-    def dateTime = Date.parse("yyyy-MM-dd'T'HH:mm:ssXXX", lastUpdate)
-    log.debug "Last sensor update ${dateTime.format("EEE MMM dd yyyy HH:mm z", location.timeZone)}"
+    //def dateTime = Date.parse("yyyy-MM-dd'T'HH:mm:ssXXX", lastUpdate)
+    //log.debug "Last sensor update ${dateTime.format("EEE MMM dd yyyy HH:mm z", location.timeZone)}"
     //child?.log "Last sensor update ${dateTime.format("EEE MMM dd yyyy HH:mm z", location.timeZone)}", "debug"
-    def strUpdate = dateTime.format("EEE MMM dd", location.timeZone) + "\n " + dateTime.format("HH:mm z", location.timeZone)
-    events << [name:"lastUpdate", value:strUpdate]    
+    //def strUpdate = dateTime.format("EEE MMM dd", location.timeZone) + "\n " + dateTime.format("HH:mm z", location.timeZone)
+    //events << [name:"lastUpdate", value:strUpdate]    
 
     // Register all the events with the camera
     child.generateEvent(events) // Update the device status
@@ -2008,7 +2009,7 @@ def Boolean updateMonitorStatus(child, retryCount = 1) {
                 log.error "Cannot find child camera device with Id ${camera.id}"
                 //child?.log "Cannot find child camera device with Id ${camera.id}", "error"
             } else {
-                log.trace "Updating Sync module status for child camera device ${device.displayName}"
+                //log.trace "Updating Sync module status for child camera device ${device.displayName}"
                 //child?.log "Updating Sync module status for child camera device ${device.displayName}"
 
                 def events = []
@@ -2835,7 +2836,7 @@ def Boolean customCommandQuery(cmd, child) {
 }
 
 def checkForCodeUpdate(evt) {
-    log.trace "Getting latest version data from the RBoy server"
+    log.trace "Getting latest version data from the RBoy Apps server"
     
     def appName = "Blink Camera Manager"
     def serverUrl = "http://smartthings.rboyapps.com"
@@ -2846,7 +2847,7 @@ def checkForCodeUpdate(evt) {
             uri: serverUrl,
             path: serverPath
         ]) { ret ->
-            log.trace "Received response from RBoyServer, headers=${ret.headers.'Content-Type'}, status=$ret.status"
+            log.trace "Received response from RBoy Apps Server, headers=${ret.headers.'Content-Type'}, status=$ret.status"
             //ret.headers.each {
             //    log.trace "${it.name} : ${it.value}"
             //}
@@ -2857,7 +2858,7 @@ def checkForCodeUpdate(evt) {
                 // Check for app version updates
                 def appVersion = ret.data?."$appName"
                 if (appVersion > clientVersion()) {
-                    def msg = "New version of app ${app.label} available: $appVersion, version: ${clientVersion()}.\nPlease visit $serverUrl to get the latest version."
+                    def msg = "New version of app ${app.label} available: $appVersion, current version: ${clientVersion()}.\nPlease visit $serverUrl to get the latest version."
                     log.info msg
                     if (!disableUpdateNotifications) {
                         sendPush(msg)
@@ -2872,7 +2873,7 @@ def checkForCodeUpdate(evt) {
                     def deviceName = devices[0].currentValue("dhName")
                     def deviceVersion = ret.data?."$deviceName"
                     if (deviceVersion && (deviceVersion > devices[0].currentValue("codeVersion"))) {
-                        def msg = "New version of device ${devices[0].displayName} available: $deviceVersion, version: ${devices[0].currentValue("codeVersion")}.\nPlease visit $serverUrl to get the latest version."
+                        def msg = "New version of device ${devices[0].displayName} available: $deviceVersion, current version: ${devices[0].currentValue("codeVersion")}.\nPlease visit $serverUrl to get the latest version."
                         log.info msg
                         if (!disableUpdateNotifications) {
                             sendPush(msg)
@@ -2913,7 +2914,7 @@ private rateLimitExceeded(def x = "", def reset = false) {
 
     def current = now() // Unit: milliseconds
     def time_passed = current - atomicState."last_check${x}" // Unit: milliseconds
-    log.trace "Passed $x: ${time_passed/1000} seconds"
+    //log.trace "Passed $x: ${time_passed/1000} seconds"
     atomicState."last_check${x}" = current
     atomicState."allowance${x}" = (atomicState."allowance${x}" + (time_passed * (rate / per))) as BigDecimal // Patch for now as state doesn't support float
     if (atomicState."allowance${x}" > rate) {
@@ -2928,7 +2929,7 @@ private rateLimitExceeded(def x = "", def reset = false) {
         atomicState."allowance${x}" = atomicState."allowance${x}" - 1
     }
     
-    log.trace "Allowance $x: ${atomicState."allowance${x}"}, Last Check: ${new Date(atomicState."last_check${x}")}"
+    //log.trace "Allowance $x: ${atomicState."allowance${x}"}, Passed $x: ${time_passed/1000} seconds, Last Check: ${new Date(atomicState."last_check${x}")}"
     
     return retVal
 }
