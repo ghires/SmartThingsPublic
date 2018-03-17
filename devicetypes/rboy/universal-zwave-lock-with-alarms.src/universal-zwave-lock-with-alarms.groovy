@@ -11,15 +11,22 @@
  */ 
  
 def clientVersion() {
-    return "03.03.03"
+    return "03.04.01"
 }
 
 /*
- * Modified by RBoy Apps, SmartThings Z-Wave lock base code as of 2016-6-1
- * Changes Copyright RBoy Apps, redistribution of any changes or modified code is not allowed without permission
+ * Copyright RBoy Apps, redistribution or reuse of code or any changes is not allowed without permission
  * Works with all Z-Wave Locks including Schlage, Yale, Kiwkset, Monoprice, DanaLock and IDLock
  *
  * Change Log
+ * 2017-10-5 - (v03.04.01) August lock pro patch for faulty firmware reporting unknown status
+ * 2017-10-4 - (v03.04.00) Yale assure lock keypad lock detection
+ * 2017-9-25 - (v03.03.06) Added more Yale Assure locks
+ * 2017-9-12 - (v03.03.06) Updated base DTH to sync with ST changes
+ * 2017-8-15 - (v03.03.06) Added support for August Z-Wave locks
+ * 2017-6-15 - (v03.03.06) When locks are updated(), refresh the MSR incase the lock has been replaced through ST, correctly report Yale and Danalock RF lock/unlock
+ * 2017-5-29 - (v03.03.05) Added support for more locks (Yale Assa Abloy) and Yale Bluetooth, updated code to latest Yale specifications
+ * 2017-5-24 - (v03.03.04) Fixed issue with Schlage keypad lock/unlock being reported as Master Code
  * 2017-5-23 - (v03.03.03) Added support for reporting Yale RFID tags/user slots
  * 2017-5-23 - (v03.03.02) Added support for FE599 series invalid code detection
  * 2017-5-4 - (v03.03.01) Updated color scheme to match ST UX recommendations
@@ -97,7 +104,7 @@ def clientVersion() {
  * 2015-1-20 - Added support for door jammed status using capability "invalidCode"
  *
  */
- 
+  
 metadata {
 	// Automatically generated. Make future change here.
 	definition (name: "Universal Z-Wave Lock With Alarms", namespace: "rboy", author: "RBoy Apps") {
@@ -179,14 +186,19 @@ metadata {
         fingerprint type:"4003", cc:"72,86,98", mfr:"0109", prod:"0002", model:"0800", deviceJoinName:"Yale YRD120"
         fingerprint type:"4003", cc:"72,86,98", mfr:"0129", prod:"0002", model:"0800", deviceJoinName:"Yale YRD120"
         fingerprint type:"4003", cc:"5E,72,98,5A,73,86", mfr:"0129", prod:"8002", model:"1600", deviceJoinName:"Yale Assure with Bluetooth (YRD446-NR-605)"
+        fingerprint type:"4003", cc:"5E,72,98,5A,73,86", mfr:"0129", prod:"8002", model:"1000", deviceJoinName:"Yale Assure with Bluetooth (YRD446-ZW-2619)"
         fingerprint type:"4003", cc:"72,86,98", mfr:"0129", prod:"0006", model:"0000", deviceJoinName:"Yale Keyfree Connected/Conexis L1" // UK
+        fingerprint type:"4003", cc:"72,86,98", mfr:"0129", prod:"0066", model:"0000", deviceJoinName:"Yale Conexis L1 SD-L1000-CH" // Safe.co.uk
         fingerprint type:"4003", cc:"72,86,98", mfr:"0129", prod:"0007", model:"0000", deviceJoinName:"Yale Keyless Connected YD-01" // UK - YD-01-CON-ZW-CH
         fingerprint type:"4003", cc:"72,86,98", mfr:"0129", prod:"0040", model:"0000", deviceJoinName:"Yale YDM3168" // Italy
         fingerprint type:"4003", cc:"5E,72,98,5A,73,86", sec:"80,62,85,59,71,70,63,8A,8B,4C,4E,7A", mfr:"0129", prod:"8001", model:"0B00", deviceJoinName:"Yale nexTouch Wireless Touchscreen" // Yale Commercial
+        fingerprint type:"4003", cc:"5E,72,98,5A,73,86", mfr:"0129", prod:"0600", model:"8004", deviceJoinName:"Yale Assure Push Button Lock" // Yale Assa Abloy series
+        fingerprint type:"4003", cc:"5E,72,98,5A,73,86", mfr:"0129", prod:"0600", model:"8002", deviceJoinName:"Yale Assure Touch Screen Lock" // Yale Assa Abloy series
         fingerprint type:"4003", cc:"5E,72,98,5A,80,73,70", sec:"86,62,63,85,59,71,7A", mfr:"0230", prod:"0003", model:"0001", deviceJoinName:"IDLock 101 Z-Wave/RFID Lock"
         fingerprint type:"4003", cc:"5E,72,98,5A,80,73,70", sec:"86,62,63,85,59,71,7A", mfr:"0230", prod:"0003", deviceJoinName:"IDLock Z-Wave/RFID Lock"
         fingerprint type:"4003", mfr:"010E", prod:"0008", model:"0002", cc:"5E,72,98,5A,80,73,22", deviceJoinName:"DanaLock V2 BLE, Z-Wave EU" // Circle
         fingerprint type:"4003", mfr:"010E", prod:"0008", model:"0001", cc:"5E,72,98,5A,80,73,22", deviceJoinName:"DanaLock V2 BLE, Z-Wave EU" // Square
+        fingerprint type:"4003", mfr:"033F", prod:"0001", model:"0001", cc:"5E,55,98,9F", sec:"86,72,5A,73,80,62,85,8E,59,6C,7A", deviceJoinName:"August Lock" // August
 	}
 
 	simulator {
@@ -380,6 +392,10 @@ private identifyLockModel() {
         	log.debug "Found Yale Keyfree/Conexis L1 Lock"
             break
             
+        case ~/0129-0066-.*/: // Yale Yale Conexis L1 SD-L1000-CH Safe.co.uk
+        	log.debug "Found Yale Conexis L1 Lock"
+            break
+
         case ~/0129-0007-.*/: // Yale Keyless Connected YD-01
         	log.debug "Found Yale Keyless Connected YD-01"
             break
@@ -392,6 +408,10 @@ private identifyLockModel() {
             log.debug "Found Yale Assure"
             break
                         
+        case ~/0129-0600-.*/: // Yale Assure Assa Abloy
+        	log.debug "Found Yale Assure Assa Abloy Lock"
+            break
+
         case "0090-0001-0642": // Kwikset 916
         	log.debug "Found Kwikset 916 Lock"
             break
@@ -427,6 +447,10 @@ private identifyLockModel() {
         case ~/010E-0008-.*/: // Danalock
         	log.debug "Found Danalock v2"
             break
+            
+        case ~/033F-0001-.*/: // August
+        	log.debug "Found August Lock"
+            break
                         
         default:
         	log.warn "Unrecognized device. Contact developer with MSR $state.MSR"
@@ -454,7 +478,7 @@ def updated() {
 def updateTiles() {
     def lockStatusS = (device.currentState('alarm')?.value && (device.currentState('alarm')?.value != "unknown") ? "Alarm ${device.currentState('alarm')?.value}" + (device.currentState('sensitive')?.value && (device.currentState('sensitive')?.value != "unknown") ? "/${device.currentState('sensitive')?.value} | ": " | ") : "") + "Battery ${device.currentState('battery')?.value}%"
     sendEvent(name: "lockStatus", value: lockStatusS, displayed: false, isStateChange: true)
-    log.trace lockStatusS
+    //log.trace lockStatusS
 }
 
 def parse(String description) {
@@ -482,7 +506,7 @@ def parse(String description) {
 
     updateTiles() // Update the alarm status on the tiles
     
-	log.debug "\"$description\" parsed to ${result.inspect()}"
+	log.debug "Parsed to ${result.inspect()}"
 	result
 }
 
@@ -511,6 +535,14 @@ def zwaveEvent(DoorLockOperationReport cmd) {
     log.debug "DoorLockOperationReport $cmd"
 	def result = []
 	def map = [ name: "lock" ]
+    
+    if (state.MSR?.startsWith("033F-")) { // August lock pro has a firmware bug and reports a doorLockMode of 254, ignore it
+        if (cmd.doorLockMode == 0xFE) {
+            log.trace "August lock firmware bug, ignoring 0xFE door lock report"
+            return
+        }
+    }
+
 	if (cmd.doorLockMode == 0xFF) {
 		map.value = "locked"
 	} else if (cmd.doorLockMode >= 0x40) {
@@ -527,8 +559,8 @@ def zwaveEvent(DoorLockOperationReport cmd) {
 		}
 	}
     
-    // IDLock supports reporting door state, see Z-Wave specs check bit 0 for door state
-    if (state.MSR?.startsWith("0230-")) { // IDLock
+    // IDLock and August supports reporting door state, see Z-Wave specs check bit 0 for door state
+    if (state.MSR?.startsWith("0230-") || state.MSR?.startsWith("033F-")) { // IDLock and August
         if ((cmd.doorCondition & 1) == 0) { // Door open
             setState("open", "$device.displayName is open")
         } else if ((cmd.doorCondition & 1) == 1) { // Door closed
@@ -550,7 +582,11 @@ def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmReport cmd) {
 		switch(cmd.zwaveAlarmEvent) {
 			case 1: // Manual lock (Z-Wave specs)
 				map.descriptionText = "$device.displayName was manually locked"
-                map.data = [ type: "manual" ]
+                if (cmd.alarmLevel == 2) { // Yale Assure Deadbolt has alarmLevel as 2 for external keypad lock and 1 for internal knob lock
+                    map.data = [ type: "keypad" ]
+                } else {
+                    map.data = [ type: "manual" ]
+                }
 				break
 			case 2: // Manual unlock (Z-Wave specs)
 				map.descriptionText = "$device.displayName was manually unlocked"
@@ -558,22 +594,22 @@ def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmReport cmd) {
 				break
             case 3: // Danalock/Yale RF Lock
                 map.descriptionText = "$device.displayName was locked"
-                map.data = [ type: "rfid" ]
+                map.data = [ type: "remote" ]
             	break
             case 4: // RF Unlock
-                if (cmd.eventParameter) { // IDLock RFID and Danalock RF
+                if (cmd.eventParameter) { // IDLock RFID
                     map.descriptionText = "$device.displayName was unlocked with code ${(cmd.eventParameter[0] - (state.MSR?.startsWith("0230-") ? 9 : 0))}"
                     map.data = [ usedCode: (cmd.eventParameter[0] - (state.MSR?.startsWith("0230-") ? 9 : 0)), type: "rfid" ] // IDLock report starts from 10 for the 1st registered card
-                } else {
+                } else { // Yale and Danalock RF
                     map.descriptionText = "$device.displayName was unlocked"
-                    map.data = [ type: "rfid" ]
+                    map.data = [ type: "remote" ]
                 }
             	break
 			case 5: // Locked via Keypad
                 if (cmd.alarmType == 18) { // Locked with keypad code (Yale), it doesn't follow Z-Wave specs and eventParameter contains unknown e.g.: [99, 3, 1, 1], locked from outside via keypad (Schlage BE469, alarmLevel=0 for no code lock and leave, alarmLevel=1 for with code)
                     if (cmd.alarmLevel >= 0) {
                         map.descriptionText = "$device.displayName was locked with code $cmd.alarmLevel"
-                        map.data = [ usedCode: (state.MSR?.startsWith("0129-") ? (cmd.alarmLevel > 249 ? 0 : cmd.alarmLevel) : cmd.alarmLevel), type: "keypad" ] // Yale locks master code returns 251 and specs allow code upto 0xF9
+                        map.data = [ usedCode: (state.MSR?.startsWith("0129-") ? (cmd.alarmLevel > 249 ? 0 : cmd.alarmLevel) : cmd.alarmLevel ?: null), type: "keypad" ] // Yale locks master code returns 251 and 0 and specs allow code upto 0xF9, Schlage/other locks report 0 for outside button/one touch lock
                     } else {
                         map.descriptionText = "$device.displayName was locked"
                         map.data = [ type: "keypad" ]
@@ -590,7 +626,7 @@ def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmReport cmd) {
                 if (cmd.alarmType == 19) { // Unlocked with keypad code (Yale), it doesn't follow Z-Wave specs and eventParameter contains unknown e.g.: [99, 3, 1, 1]
                     if (cmd.alarmLevel >= 0) {
                         map.descriptionText = "$device.displayName was unlocked with code $cmd.alarmLevel"
-                        map.data = [ usedCode: (state.MSR?.startsWith("0129-") ? (cmd.alarmLevel > 249 ? 0 : cmd.alarmLevel) : cmd.alarmLevel), type: "keypad" ] // Yale locks master code returns 251 and specs allow code upto 0xF9
+                        map.data = [ usedCode: (state.MSR?.startsWith("0129-") ? (cmd.alarmLevel > 249 ? 0 : cmd.alarmLevel) : cmd.alarmLevel ?: null), type: "keypad" ] // Yale locks master code returns 251 and 0 and specs allow code upto 0xF9, Schlage/other locks report 0 for outside button/one touch lock
                     } else {
                         map.descriptionText = "$device.displayName was unlocked"
                         map.data = [ type: "keypad" ]
@@ -668,18 +704,35 @@ def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmReport cmd) {
                 break
             case 0xFE: // Misc
                 switch(cmd.alarmType) {
-                    case 43: // Yale DPS
+                    case 0x2B: // Yale DPS
                         if (cmd.alarmLevel == 2) {
                             setState("open", "$device.displayName is open")
                             map = [ descriptionText: "$device.displayName: DPS Open", displayed: false ]
                         }
                         break
-                    case 161: // Yale tamper alarm
+                    case 0x26: // Yale Non Access User (programmed but does not operate lock), alarmLevel represents user slot no
+                    	map = [ descriptionText: "$device.displayName: Non Access User $cmd.alarmLevel", displayed: true ]
+                        break
+                    case 0xA1: // Yale tamper alarm
                         if (cmd.alarmLevel == 2) {
                             map = [ name: "tamper", value: "detected", descriptionText: "$device.displayName front escutcheon removed", isStateChange: true, displayed: true ]
                             activateMotion("$device.displayName: Door tampering activity detected")
                             runIn(60, deactivateMotion) // Clear motion and tamper after 60 seconds, since tamper clear is never sent by a lock
                         }
+                        break
+                    case 0xB0: // Yale Mobile Access, unlocked via Bluetooth
+                    	map = [ name: "lock", value: "unlocked" ]
+                        map.descriptionText = "$device.displayName was unlocked"
+                        map.data = [ type: "bluetooth" ]
+                        break
+                    case 0xB2: // Yale configuration params updated via Mobile
+                    	map = [ descriptionText: "$device.displayName: Configuration params update via Mobile", displayed: false ]
+                        break
+                    case 0x83: // Yale Disabled User Pin was entered
+                    	map = [ descriptionText: "$device.displayName: Disabled User $cmd.alarmLevel", displayed: true ]
+                        break
+                    case 0x84: // Yale Out of schedule user (valid)
+                    	map = [ descriptionText: "$device.displayName: Out of Schedule User $cmd.alarmLevel", displayed: true ]
                         break
                     default:
                         map = map ?: [ descriptionText: "$device.displayName: Misc event, alarm type $cmd.alarmType", displayed: false ]
@@ -729,7 +782,7 @@ def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmReport cmd) {
 			map = [ name: "lock", value: "locked" ]
 			if (cmd.alarmLevel >= 0) { // Yale Master Code is 0
 				map.descriptionText = "$device.displayName was locked with code $cmd.alarmLevel"
-				map.data = [ usedCode: (state.MSR?.startsWith("0129-") ? (cmd.alarmLevel > 249 ? 0 : cmd.alarmLevel) : cmd.alarmLevel), type: "keypad" ] // Yale locks master code returns 251 and specs allow code upto 0xF9
+                map.data = [ usedCode: (state.MSR?.startsWith("0129-") ? (cmd.alarmLevel > 249 ? 0 : cmd.alarmLevel) : cmd.alarmLevel ?: null), type: "keypad" ] // Yale locks master code returns 251 and 0 and specs allow code upto 0xF9, Schlage/other locks report 0 for outside button/one touch lock
 			} else {
                 map.descriptionText = "$device.displayName was locked"
                 map.data = [ type: "keypad" ]
@@ -763,7 +816,7 @@ def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmReport cmd) {
 			map = [ name: "lock", value: "unlocked" ]
 			if (cmd.alarmLevel >= 0) { // Yale Master code is 0
 				map.descriptionText = "$device.displayName was unlocked with code $cmd.alarmLevel"
-				map.data = [ usedCode: (state.MSR?.startsWith("0129-") ? (cmd.alarmLevel > 249 ? 0 : cmd.alarmLevel) : cmd.alarmLevel), type: "keypad" ] // Yale locks master code returns 251 and specs allow code upto 0xF9
+                map.data = [ usedCode: (state.MSR?.startsWith("0129-") ? (cmd.alarmLevel > 249 ? 0 : cmd.alarmLevel) : cmd.alarmLevel ?: null), type: "keypad" ] // Yale locks master code returns 251 and 0 and specs allow code upto 0xF9, Schlage/other locks report 0 for outside button/one touch lock
 			} else {
                 map.descriptionText = "$device.displayName was unlocked"
                 map.data = [ type: "keypad" ]
@@ -841,7 +894,7 @@ def zwaveEvent(physicalgraph.zwave.commands.alarmv2.AlarmReport cmd) {
 				map = [ descriptionText: "$device.displayName: battery low", isStateChange: true ]
 				result << response(getBatteryState())
 			} else {
-				map = [ name: "battery", value: device.currentValue("battery"), descriptionText: "$device.displayName: battery low", displayed: true ]
+				map = [ name: "battery", value: cmd.alarmLevel ?: device.currentValue("battery"), descriptionText: "$device.displayName: battery low", displayed: true ] // Yale reports battery level
 			}
             runIn(5, updateTiles) // Update the alarm status on the tiles after 5 seconds giving it time to register
 			break
@@ -955,6 +1008,7 @@ def zwaveEvent(physicalgraph.zwave.commands.associationv2.AssociationReport cmd)
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.timev1.TimeGet cmd) {
+    log.debug "$device.displayName requested time update"
 	def result = []
 	def now = new Date().toCalendar()
 	if(location.timeZone) now.timeZone = location.timeZone
@@ -970,11 +1024,12 @@ def zwaveEvent(physicalgraph.zwave.commands.timev1.TimeGet cmd) {
 def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicSet cmd) {
 	// The old Schlage locks use group 1 for basic control - we don't want that, so unsubscribe from group 1
 	def result = [ createEvent(name: "lock", value: cmd.value ? "unlocked" : "locked") ]
-	result << response(zwave.associationV1.associationRemove(groupingIdentifier:1, nodeId:zwaveHubNodeId))
-	if (state.assoc != zwaveHubNodeId) {
-		result << response(zwave.associationV1.associationGet(groupingIdentifier:2))
-	}
-	result
+    def cmds = [
+        zwave.associationV1.associationRemove(groupingIdentifier:1, nodeId:zwaveHubNodeId).format(),
+        "delay 1200",
+        zwave.associationV1.associationGet(groupingIdentifier:2).format()
+    ]
+    [result, response(cmds)]
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.batteryv1.BatteryReport cmd) {
@@ -986,6 +1041,7 @@ def zwaveEvent(physicalgraph.zwave.commands.batteryv1.BatteryReport cmd) {
 	} else {
 		map.value = cmd.batteryLevel
 	}
+    log.info "Battery level $map.value%"
 	state.lastbatt = now()
 	result = createEvent(map)
     runIn(5, updateTiles) // Update the alarm status on the tiles after 5 seconds giving it time to register
@@ -1018,14 +1074,17 @@ def zwaveEvent(physicalgraph.zwave.commands.applicationstatusv1.ApplicationBusy 
 	def msg = cmd.status == 0 ? "try again later" :
 	          cmd.status == 1 ? "try again in $cmd.waitTime seconds" :
 	          cmd.status == 2 ? "request queued" : "sorry"
+    log.warn "$device.displayName is busy, $msg"
 	createEvent(displayed: true, descriptionText: "$device.displayName is busy, $msg")
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.applicationstatusv1.ApplicationRejectedRequest cmd) {
-	createEvent(displayed: true, descriptionText: "$device.displayName rejected the last request")
+	log.error "$device.displayName rejected the last request"
+    createEvent(displayed: true, descriptionText: "$device.displayName rejected the last request")
 }
 
 def zwaveEvent(physicalgraph.zwave.Command cmd) {
+    log.warn "$device.displayName: $cmd"
 	createEvent(displayed: false, descriptionText: "$device.displayName: $cmd")
 }
 
@@ -1085,9 +1144,9 @@ def refresh() {
 		state.associationQuery = now()
 	}
     
-	if (!state.MSR) { // If we don't have a MSR, first get it (and wait for it to complete)
+	if (!state.MSR || !state.configured) { // If we don't have a MSR or we refreshed the settings, first get it (and wait for it to complete)
 		log.debug "Getting Device MSR"
-    	cmds << zwave.manufacturerSpecificV2.manufacturerSpecificGet().format()
+    	cmds << response(zwave.manufacturerSpecificV2.manufacturerSpecificGet().format())
 	    cmds << "delay 5000"
     } else {
         cmds << getAlarmLevel() // Alarm Level
@@ -1115,7 +1174,7 @@ def refresh() {
         state.configured = true // We're done here
     }
     
-	log.trace "refresh sending ${cmds.inspect()}"
+	//log.trace "refresh sending ${cmds.inspect()}"
 	cmds
 }
 
@@ -1303,7 +1362,7 @@ private allCodesDeleted() {
 
 // CUSTOM STUFF
 def zwaveEvent(physicalgraph.zwave.commands.configurationv2.ConfigurationReport cmd) { // Even though you're using V1 to read, ST seems to report it using V2 format, so process as V2
-	log.debug "ConfigurationReport $cmd"
+	log.trace "ConfigurationReport $cmd"
 	def result = []
     def map = null
     
@@ -1321,6 +1380,8 @@ def zwaveEvent(physicalgraph.zwave.commands.configurationv2.ConfigurationReport 
         log.warn "Unknown device with MSR $state.MSR, report it to developer"
         sendEvent(name: "contactDeveloper", value: "Unknown lock. Contact developer, quote MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
     }
+    
+    log.info map
 
 	result = createEvent(map)
     runIn(5, updateTiles) // Update the alarm status on the tiles after 5 seconds giving it time to register
@@ -1329,7 +1390,7 @@ def zwaveEvent(physicalgraph.zwave.commands.configurationv2.ConfigurationReport 
 
 // Parse DanaLock parameters
 private danaLockConfigurationReport(cmd) {
-	log.debug "Processing Danalock Configuration Report"
+	log.trace "Processing Danalock Configuration Report"
     def map = null
 
     switch (cmd.parameterNumber) {
@@ -1406,14 +1467,12 @@ private danaLockConfigurationReport(cmd) {
 			break
     }
     
-    log.trace map
-    
     return map
 }
 
 // Parse the IDLock parameters
 private idLockConfigurationReport(cmd) {
-	log.debug "Processing IDLock Configuration Report"
+	log.trace "Processing IDLock Configuration Report"
     def map = null
 
     switch (cmd.parameterNumber) {
@@ -1444,14 +1503,12 @@ private idLockConfigurationReport(cmd) {
 			break
     }
     
-    log.trace map
-    
     return map
 }
 
 // Parse the Kwikset parameters
 private kwiksetConfigurationReport(cmd) {
-	log.debug "Processing Kwikset Configuration Report"
+	log.trace "Processing Kwikset Configuration Report"
     def map = null
 
     switch (cmd.parameterNumber) {
@@ -1484,14 +1541,12 @@ private kwiksetConfigurationReport(cmd) {
 			break
     }
     
-    log.trace map
-    
     return map
 }
 
 // Parse the Yale parameters
 private yaleConfigurationReport(cmd) {
-	log.debug "Processing Yale Configuration Report"
+	log.trace "Processing Yale Configuration Report"
     def map = null
 
     switch (cmd.parameterNumber) {
@@ -1656,14 +1711,12 @@ private yaleConfigurationReport(cmd) {
 			break
     }
     
-    log.trace map
-    
     return map
 }
 
 // Parse the Schlage parameters
 private schlageConfigurationReport(cmd) {
-	log.debug "Processing Schlage Configuration Report"
+	log.trace "Processing Schlage Configuration Report"
     def map = null
 
     switch (cmd.parameterNumber) {
@@ -1825,41 +1878,36 @@ private schlageConfigurationReport(cmd) {
 			break
     }
     
-    log.trace map
-    
     return map
 }
 
 def getPinLength() {
-    log.debug "Getting user pin code length"
+    log.debug "Getting configured user pin code length"
     
     def parameter
     def security = true
     if (state.MSR?.startsWith("003B-")) { // Schlage lock
         parameter = 16
     } else {
-        log.warn "Unsupported device with MSR $state.MSR"
+        log.warn "Unsupported device with MSR $state.MSR, cannot query pin length"
         sendEvent(name: "pinLength", value: 0) // Not supported
         return null
     }
 
     switch (state.MSR) { // check if we have a supported device
-        case ~/003B-6341-.*/: // Schlage FE/BE469 Generic
-        	log.debug "Found Schlage FE/BE469"
-            break
-            
-        case ~/003B-6349-.*/: // Schlage BE468 Generic
-        	log.debug "Found Schlage BE468"
-            break
-            
+        // First do specific cases before moving to generic cases with regex matching
         case ~/003B-634B-.*/: // Schlage FE5xx/BE3xx
-        	log.debug "Found Schlage FE5xx/BE3xx, fixed pin length 4 digits"
+        	log.info "Found Schlage FE5xx/BE3xx, fixed pin length 4 digits"
         	sendEvent(name: "pinLength", value: 4, descriptionText: "Pin code length") // Fixed length 4 digits for these locks
         	return // we're done here no command to send, it's fixed length for these locks
             break
         
+        case ~/003B-.*/: // Schlage
+        	log.trace "Found Schlage"
+            break
+            
         default:
-        	log.debug "Unrecognized device with MSR $state.MSR, Pin Code Length feature may not be available"
+        	log.warn "Unrecognized device with MSR $state.MSR, Pin Code Length feature not be available"
         	sendEvent(name: "pinLength", value: 0) // Not supported
             break
     }
@@ -1868,74 +1916,34 @@ def getPinLength() {
 }
 
 def getKeypadState() {
-    log.debug "Getting keypad code unlock state"
+    log.debug "Getting keypad state"
     
     def parameter
     def security = true
     if (state.MSR?.startsWith("003B-")) { // Schlage lock
+        log.trace "Found Schlage"
         parameter = 4
     } else if (state.MSR?.startsWith("0109-") || state.MSR?.startsWith("0129-")) { // Yale lock
+        log.trace "Found Yale"
         parameter = 8
     } else if (state.MSR?.startsWith("0230-")) { // IDLock
+        log.trace "Found IDLock"
         security = false // ID Lock uses non secure channel for configuration class
         parameter = 1
     } else {
-        log.warn "Unsupported device with MSR $state.MSR"
+        log.warn "Unknown device with MSR $state.MSR, keypad state not available"
         sendEvent(name: "codeunlock", value: "", displayed: false) // Not supported
         return
-    }
-
-    switch (state.MSR) { // check if we have a supported device
-        case ~/003B-6341-.*/: // Schlage FE/BE469 Generic
-        	log.debug "Found Schlage FE/BE469"
-            break
-            
-        case ~/003B-6349-.*/: // Schlage BE468 Generic
-        	log.debug "Found Schlage BE468"
-            break
-            
-        case ~/003B-634B-.*/: // Schlage FE5xx/BE3xx
-        	log.debug "Found Schlage FE5xx/BE3xx"
-            break
-            
-        case ~/0109-0001-.*/: // Yale Touch Lever
-        case ~/0129-0001-.*/: // Yale Touch Lever
-        	log.debug "Found Yale Touch Lever"
-            break
-                        
-        case ~/0109-0002-.*/: // Yale Touch Deadbolt
-        case ~/0129-0002-.*/: // Yale Touch Deadbolt
-        	log.debug "Found Yale Touch Deadbolt"
-            break
-                        
-        case ~/0109-0003-.*/: // Yale Push Button Lever
-        case ~/0129-0003-.*/: // Yale Push Button Lever
-        	log.debug "Found Yale Push Button Lever"
-            break
-                        
-        case ~/0109-0004-.*/: // Yale Push Button Deadbolt
-        case ~/0129-0004-.*/: // Yale Push Button Deadbolt
-        	log.debug "Found Yale Push Button Deadbolt"
-            break
-                        
-        case ~/0230-0003-.*/: // IDLock 1xx
-        	log.debug "Found IDLock 1xx"
-            break
-                        
-        default:
-        	log.debug "Unrecognized device with MSR $state.MSR, CodeUnLock feature may not be available"
-        	sendEvent(name: "codeunlock", value: "", displayed: false) // Not supported
-            break
     }
 
 	security ? secure(zwave.configurationV1.configurationGet(parameterNumber: parameter)) : zwave.configurationV1.configurationGet(parameterNumber: parameter).format()
 }	
 
 def enableKeypad() {
-    log.debug "Enabling keypad code unlock"
+    log.debug "Enabling keypad"
     
     if (!(device.currentState('codeunlock')?.value && (device.currentState('codeunlock')?.value != "unknown"))) { // Check if we have succesfully managed to read the feature state, if not then it isn't supported
-        log.warn "Unsupported device with MSR $state.MSR, CodeUnLock feature not available"
+        log.warn "Unsupported device with MSR $state.MSR, Keypad enable feature not available"
         sendEvent(name: "contactDeveloper", value: "Feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
         return
     }
@@ -1958,7 +1966,7 @@ def enableKeypad() {
             value = [0x0 | 0x0] // Bit 1 AutoLock, Bit 2 Away mode
         } else {
             log.error "IDLock device with MSR $state.MSR, cannot determine AutoLock state, not enabling Keypad"
-            sendEvent(name: "unknownState", value: "Cannot determine AutoLock state, not enabling Keypad", isStateChange: true, displayed: true)
+            sendEvent(name: "unknownState", value: "Cannot determine Keypad state, not enabling Keypad", isStateChange: true, displayed: true)
             return
         }
     } else {
@@ -1981,10 +1989,10 @@ def enableKeypad() {
 }	
 
 def disableKeypad() {
-    log.debug "Disabling keypad code unlock"
+    log.debug "Disabling keypad"
     
     if (!(device.currentState('codeunlock')?.value && (device.currentState('codeunlock')?.value != "unknown"))) { // Check if we have succesfully managed to read the feature state, if not then it isn't supported
-        log.warn "Unsupported device with MSR $state.MSR, CodeUnLock feature not available"
+        log.warn "Unsupported device with MSR $state.MSR, Keypad disable feature not available"
         sendEvent(name: "contactDeveloper", value: "Feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
         return
     }
@@ -2006,6 +2014,7 @@ def disableKeypad() {
 
     def value = []
 	switch (state.MSR) { // check if we have a supported device
+        // First do specific cases before moving to generic cases with regex matching
         case ~/003B-6341-.*/: // Schlage FE/BE469 Generic
         case ~/003B-6349-.*/: // Schlage BE468 Generic
             value = [255]
@@ -2015,8 +2024,8 @@ def disableKeypad() {
             value = [1]
             break
                         
-        case ~/0109-000[1-4]-.*/: // Yale locks
-        case ~/0129-000[1-4]-.*/: // Yale locks
+        case ~/0109-.*/: // Yale locks
+        case ~/0129-.*/: // Yale locks
         	value = [1] // Vacation mode (don't use privacy mode for consistency)
             break
                         
@@ -2031,9 +2040,10 @@ def disableKeypad() {
                 return
             }
             break
+            
         default:
             value = [255] // Default most Schlage locks use this try it out
-        	log.warn "Unsupported Schlage device with MSR $state.MSR, CodeUnLock feature may not work properly"
+        	log.warn "Unknown Schlage device with MSR $state.MSR, contact developer, Keypad disable feature may not work"
         	sendEvent(name: "contactDeveloper", value: "Unsupported lock. Contact developer, quote MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
             break
     }
@@ -2056,75 +2066,23 @@ def getAudioState() {
     
     def parameter
     if (state.MSR?.startsWith("003B-")) { // Schlage lock
+        log.trace "Found Schlage"
         parameter = 3
     } else if (state.MSR?.startsWith("0109-") || state.MSR?.startsWith("0129-")) { // Yale lock
+        log.trace "Found Yale"
         parameter = 1
     } else if (state.MSR?.startsWith("0090-") ) { // kwikset lock
+        log.trace "Found Kwikset Lock"
         parameter = 31
     } else if (state.MSR?.startsWith("010E-0008")) { // Danalock
+        log.trace "Found Danalock"
         parameter = 6
     } else {
-        log.warn "Unsupported device with MSR $state.MSR"
+        log.warn "Unknown device with MSR $state.MSR, Audio/Beeper feature not available"
         sendEvent(name: "beeper", value: "", displayed: false) // Not supported
         return
     }
 
-	switch (state.MSR) { // check if we have a supported device
-        case ~/003B-6341-.*/: // Schlage FE/BE469 Generic
-        	log.debug "Found Schlage FE/BE469"
-            break
-            
-        case ~/003B-6349-.*/: // Schlage BE468 Generic
-        	log.debug "Found Schlage BE468"
-            break
-            
-        case ~/003B-634B-.*/: // Schlage FE5xx/BE3xx Series Generic
-        	log.debug "Found Schlage FE5xx/BE3xx"
-            break
-            
-        case ~/0109-0001-.*/: // Yale Touch Lever
-        case ~/0129-0001-.*/: // Yale Touch Lever
-        	log.debug "Found Yale Touch Lever"
-            break
-                        
-        case ~/0109-0002-.*/: // Yale Touch Deadbolt
-        case ~/0129-0002-.*/: // Yale Touch Deadbolt
-        	log.debug "Found Yale Touch Deadbolt"
-            break
-                        
-        case ~/0109-0003-.*/: // Yale Push Button Lever
-        case ~/0129-0003-.*/: // Yale Push Button Lever
-        	log.debug "Found Yale Push Button Lever"
-            break
-                        
-        case ~/0109-0004-.*/: // Yale Push Button Deadbolt
-        case ~/0129-0004-.*/: // Yale Push Button Deadbolt
-        	log.debug "Found Yale Push Button Deadbolt"
-            break
-
-        case ~/0129-0006-.*/: // Yale Keyfree Lock
-        	log.debug "Found Yale Keyfree Lock"
-            break
-            
-        case ~/0129-0007-.*/: // Yale Keyless Connected YD-01
-        	log.debug "Found Yale Keyless Connected YD-01"
-            break
-                        
-        case ~/0090-0001-.*/: // Kwikset 916/914/910
-        	log.debug "Found Kwikset Lock"
-            break
-            
-        case ~/010E-0008-.*/: // Danalock
-        	log.debug "Found Danalock v2"
-            break
-
-                        
-        default:
-        	log.debug "Unsupported device with MSR $state.MSR, Audio/Beeper feature may not be available"
-        	sendEvent(name: "beeper", value: "", displayed: false) // Not supported
-            break
-    }
-    
 	secure(zwave.configurationV1.configurationGet(parameterNumber: parameter))
 }	
 
@@ -2133,7 +2091,7 @@ def enableAudio() {
 
     if (!(device.currentState('beeper')?.value && (device.currentState('beeper')?.value != "unknown"))) { // Check if we have succesfully managed to read the feature state, if not then it isn't supported
         log.warn "Unsupported device with MSR $state.MSR, Audio/Beeper feature not available"
-        sendEvent(name: "contactDeveloper", value: "Feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
+        sendEvent(name: "contactDeveloper", value: "Audio/Beeper feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
         return
     }
 
@@ -2177,7 +2135,7 @@ def disableAudio() {
 
     if (!(device.currentState('beeper')?.value && (device.currentState('beeper')?.value != "unknown"))) { // Check if we have succesfully managed to read the feature state, if not then it isn't supported
         log.warn "Unsupported device with MSR $state.MSR, Audio/Beeper feature not available"
-        sendEvent(name: "contactDeveloper", value: "Feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
+        sendEvent(name: "contactDeveloper", value: "Audio/Beeper feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
         return
     }
 
@@ -2209,92 +2167,41 @@ def disableAudio() {
 }	
 
 def getAutolockState() {
-    log.debug "Getting auto lock state"
+    log.debug "Getting AutoLock state"
     
     def parameter
     def security = true
     if (state.MSR?.startsWith("003B-")) { // Schlage lock
+        log.trace "Found Schlage"
         parameter = 15
     } else if (state.MSR?.startsWith("0109-") || state.MSR?.startsWith("0129-")) { // Yale lock
+        log.trace "Found Yale"
         parameter = 2
     } else if (state.MSR?.startsWith("0090-")) { // kwikset lock
+        log.trace "Found Kwikset"
         parameter = 31
     } else if (state.MSR?.startsWith("0230-")) { // IDLock
+        log.trace "Found IDLock"
         security = false // ID Lock uses non secure channel for configuration class
         parameter = 1
     } else if (state.MSR?.startsWith("010E-0008")) { // Danalock
+        log.trace "Found Danalock"
         parameter = 5
     } else {
-        log.warn "Unsupported device with MSR $state.MSR"
+        log.warn "Unsupported device with MSR $state.MSR, AutoLock feature not supported"
         sendEvent(name: "autolock", value: "", displayed: false) // Not supported
         return
-    }
-
-	switch (state.MSR) { // check if we have a supported device
-        case ~/003B-6341-.*/: // Schlage FE/BE469 Generic
-        	log.debug "Found Schlage FE/BE469"
-            break
-            
-        case ~/003B-6349-.*/: // Schlage BE468 Generic
-        	log.debug "Found Schlage BE468"
-            break
-            
-        case ~/0109-0001-.*/: // Yale Touch Lever
-        case ~/0129-0001-.*/: // Yale Touch Lever
-        	log.debug "Found Yale Touch Lever"
-            break
-                        
-        case ~/0109-0002-.*/: // Yale Touch Deadbolt
-        case ~/0129-0002-.*/: // Yale Touch Deadbolt
-        	log.debug "Found Yale Touch Deadbolt"
-            break
-                        
-        case ~/0109-0003-.*/: // Yale Push Button Lever
-        case ~/0129-0003-.*/: // Yale Push Button Lever
-        	log.debug "Found Yale Push Button Lever"
-            break
-                        
-        case ~/0109-0004-.*/: // Yale Push Button Deadbolt
-        case ~/0129-0004-.*/: // Yale Push Button Deadbolt
-        	log.debug "Found Yale Push Button Deadbolt"
-            break
-
-        case ~/0129-0006-.*/: // Yale Keyfree Lock
-        	log.debug "Found Yale Keyfree Lock"
-            break
-            
-        case ~/0129-0007-.*/: // Yale Keyless Connected YD-01
-        	log.debug "Found Yale Keyless Connected YD-01"
-            break
-                        
-        case ~/0090-0001-.*/: // Kwikset 916/915/910
-        	log.debug "Found Kwikset Lock"
-            break
-                        
-        case ~/0230-0003-.*/: // IDLock 1xx
-        	log.debug "Found IDLock 1xx"
-            break
-            
-        case ~/010E-0008-.*/: // Danalock
-            log.debug "Found Danalock v2"
-            break
-
-                        
-        default:
-        	log.debug "Unsupported device with MSR $state.MSR, Auto Lock feature may not be available"
-        	sendEvent(name: "autolock", value: "", displayed: false) // Not supported
-            break
     }
     
 	security ? secure(zwave.configurationV1.configurationGet(parameterNumber: parameter)) : zwave.configurationV1.configurationGet(parameterNumber: parameter).format()
 }	
 
 def enableAutolock() {
-    log.debug "Enabling auto lock" 
+    log.debug "Enabling AutoLock" 
 
     if (!(device.currentState('autolock')?.value && (device.currentState('autolock')?.value != "unknown"))) { // Check if we have succesfully managed to read the feature state, if not then it isn't supported
         log.warn "Unsupported device with MSR $state.MSR, AutoLock feature not available"
-        sendEvent(name: "contactDeveloper", value: "Feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
+        sendEvent(name: "contactDeveloper", value: "AutoLock feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
         return
     }
 
@@ -2346,11 +2253,11 @@ def enableAutolock() {
 }	
 
 def disableAutolock() {
-    log.debug "Disabling auto lock"
+    log.debug "Disabling AutoLock"
 
     if (!(device.currentState('autolock')?.value && (device.currentState('autolock')?.value != "unknown"))) { // Check if we have succesfully managed to read the feature state, if not then it isn't supported
         log.warn "Unsupported device with MSR $state.MSR, AutoLock feature not available"
-        sendEvent(name: "contactDeveloper", value: "Feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
+        sendEvent(name: "contactDeveloper", value: "AutoLock feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
         return
     }
 
@@ -2417,26 +2324,27 @@ def getModeMap() {
 def getAlarmLevel() {
     log.debug "Getting Alarm Level"
     
-	switch (state.MSR) { // check if we have a supported device
-        case ~/003B-6341-.*/: // Schlage FE/BE469 Generic
-        	log.debug "Found Schlage FE/BE469"
-            break
-            
-        default:
-        	log.debug "Unsupported device with MSR $state.MSR, Alarm feature may not be available"
-        	sendEvent(name: "alarm", value: "", displayed: false) // Not supported
-            break
+    def parameter
+    def security = true
+    if (state.MSR?.startsWith("003B-")) { // Schlage lock
+        log.trace "Found Schlage"
+        parameter = 7
+    } else {
+        log.warn "Unsupported device with MSR $state.MSR, Alarm feature not supported"
+        sendEvent(name: "alarm", value: "", displayed: false) // Not supported
+        runIn(5, updateTiles) // Update the alarm status on the tiles after 5 seconds giving it time to register
+        return
     }
     
-    secure(zwave.configurationV1.configurationGet(parameterNumber: 7))
+	security ? secure(zwave.configurationV1.configurationGet(parameterNumber: parameter)) : zwave.configurationV1.configurationGet(parameterNumber: parameter).format()
 }
 
 def setAlarm(String newMode) {
-    log.debug "Set Alarm level"
+    log.debug "Set Alarm level to $newMode"
 
     if (!(device.currentState('alarm')?.value && (device.currentState('alarm')?.value != "unknown"))) { // Check if we have succesfully managed to read the feature state, if not then it isn't supported
         log.warn "Unsupported device with MSR $state.MSR, Alarm feature not available"
-        sendEvent(name: "contactDeveloper", value: "Feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
+        sendEvent(name: "contactDeveloper", value: "Alarm feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
         return
     }
 
@@ -2445,13 +2353,34 @@ def setAlarm(String newMode) {
         return
     }
 
-	log.debug "SetAlarm setting Alarm mode to $newMode -> ${[modeMap[newMode]]}"
+	log.info "SetAlarm setting Alarm mode to $newMode -> ${[modeMap[newMode]]}"
     
-    delayBetween([
-        secure(zwave.configurationV1.configurationSet(parameterNumber: 7, configurationValue: [modeMap[newMode]])),
-        secure(zwave.configurationV1.configurationGet(parameterNumber: 7)),
-        getSensitiveLevel(newMode) // Get the level after the alarm
-    ], 5000)
+    def parameter
+    def value = []
+    def security = true
+    if (state.MSR?.startsWith("003B-")) { // Schlage lock
+        log.trace "Found Schlage"
+        parameter = 7
+        value = [modeMap[newMode]]
+    } else {
+        log.warn "Unknown device with MSR $state.MSR, report it to developer"
+        sendEvent(name: "contactDeveloper", value: "Unknown lock. Contact developer, quote MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
+        return
+    }
+
+    if (security) {
+        delayBetween([
+            secure(zwave.configurationV1.configurationSet(parameterNumber: parameter, configurationValue: value)),
+            secure(zwave.configurationV1.configurationGet(parameterNumber: parameter)),
+            getSensitiveLevel(newMode) // Get the level after the alarm
+        ], 5000)
+    } else {
+        delayBetween([
+            zwave.configurationV1.configurationSet(parameterNumber: parameter, configurationValue: value).format(),
+            zwave.configurationV1.configurationGet(parameterNumber: parameter).format(),
+            getSensitiveLevel(newMode) // Get the level after the alarm
+        ], 5000)
+    }
 }
 
 def alarmToggle() {
@@ -2459,32 +2388,54 @@ def alarmToggle() {
 
     if (!(device.currentState('alarm')?.value && (device.currentState('alarm')?.value != "unknown"))) { // Check if we have succesfully managed to read the feature state, if not then it isn't supported
         log.warn "Unsupported device with MSR $state.MSR, Alarm feature not available"
-        sendEvent(name: "contactDeveloper", value: "Feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
+        sendEvent(name: "contactDeveloper", value: "Alarm feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
         return
     }
 
 	def currentMode = device.currentState("alarm")?.value
-	log.debug "AlarmToggle Current Alarm mode is $currentMode"
+	log.trace "AlarmToggle Current Alarm mode is $currentMode"
 	if (!currentMode) { // Sometime when the initialization is not complete, we get a null here, so avoid a crash and wait
     	log.warn "Lock initialization not complete, deferring toggle alarm. Try again later after refreshing lock status."
         return
     }
-        
-	def modeOrder = modes()
-	def next = { modeOrder[modeOrder.indexOf(it) + 1] ?: modeOrder[0] }
-	def nextMode = next(currentMode)
+
+    def modeOrder = modes()
+    def next = { modeOrder[modeOrder.indexOf(it) + 1] ?: modeOrder[0] }
+    def nextMode = next(currentMode)
     
-    log.debug "AlarmToggle Setting Alarm mode to $nextMode -> ${modeMap[nextMode]}"
-    
-    delayBetween([
-        secure(zwave.configurationV1.configurationSet(parameterNumber: 7, configurationValue: [modeMap[nextMode]])),
-        secure(zwave.configurationV1.configurationGet(parameterNumber: 7)),
-        getSensitiveLevel(nextMode) // Get the level after the alarm
-    ], 5000)
+    def parameter
+    def value = []
+    def security = true
+    if (state.MSR?.startsWith("003B-")) { // Schlage lock
+        log.trace "Found Schlage"
+
+        log.info "AlarmToggle Setting Alarm mode to $nextMode -> ${modeMap[nextMode]}"
+
+        parameter = 7
+        value = [modeMap[nextMode]]
+    } else {
+        log.warn "Unknown device with MSR $state.MSR, report it to developer"
+        sendEvent(name: "contactDeveloper", value: "Unknown lock. Contact developer, quote MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
+        return
+    }
+
+    if (security) {
+        delayBetween([
+            secure(zwave.configurationV1.configurationSet(parameterNumber: parameter, configurationValue: value)),
+            secure(zwave.configurationV1.configurationGet(parameterNumber: parameter)),
+            getSensitiveLevel(nextMode) // Get the level after the alarm
+        ], 5000)
+    } else {
+        delayBetween([
+            zwave.configurationV1.configurationSet(parameterNumber: parameter, configurationValue: value).format(),
+            zwave.configurationV1.configurationGet(parameterNumber: parameter).format(),
+            getSensitiveLevel(nextMode) // Get the level after the alarm
+        ], 5000)
+    }
 }
 
 def sensitives() {
-	["highest", "high", "medium", "low", "lowest"]
+	["lowest", "low", "medium", "high", "highest"]
 }
 
 def getSensitiveMap() {
@@ -2503,45 +2454,44 @@ def getSensitiveLevel() {
 }
 
 def getSensitiveLevel(currentMode) {
-    log.debug "Getting Sensitivity Level"
+    log.debug "Getting Sensitivity Level, current Alarm Mode $currentMode"
     
-	switch (state.MSR) { // check if we have a supported device
-        case ~/003B-6341-.*/: // Schlage FE/BE469 Generic
-        	log.debug "Found Schlage FE/BE469"
-            break
-            
-        default:
-        	log.debug "Unsupported device with MSR $state.MSR, Alarm Sensitivity feature may not be available"
-        	sendEvent(name: "sensitive", value: "", displayed: false) // Not supported
-        	runIn(5, updateTiles) // Update the alarm status on the tiles after 5 seconds giving it time to register
-            break
-    }
-    
-	if (!currentMode) { // Sometime when the initialization is not complete, we get a null here, so avoid a crash and wait
-    	log.debug "Lock Alarm mode not configured or not supported, deferring getting Alarm sensitivity level."
+	if (!(currentMode && (currentMode != "unknown"))) { // Sometime when the initialization is not complete, we get a null here or if Alarm is unsupported we get a unknown, so avoid a crash and wait
+    	log.warn "Lock Alarm mode not configured or not supported, deferring getting Alarm sensitivity level."
         sendEvent(name: "sensitive", value: "", displayed: false, isStateChange: true) // There is no sensitive level for off
         runIn(5, updateTiles) // Update the alarm status on the tiles after 5 seconds giving it time to register
         return
     }
         
-	int currentModeValue = modeMap[currentMode]
-	log.debug "GetSensitiveLevel Current Alarm mode is $currentMode -> $currentModeValue"
-    if (currentMode == "off") { // In off mode there is no sensitivity level
-    	log.debug "There is no sensitive level when alarm is in off mode"
-        sendEvent(name: "sensitive", value: "", displayed: false, isStateChange: true) // There is no sensitive level for off
+    def parameter
+    def security = true
+    if (state.MSR?.startsWith("003B-")) { // Schlage lock
+        log.trace "Found Schlage"
+        int currentModeValue = modeMap[currentMode]
+        log.trace "GetSensitiveLevel Current Alarm mode is $currentMode -> $currentModeValue"
+        if (currentMode == "off") { // In off mode there is no sensitivity level
+            log.info "There is no sensitive level when alarm is in off mode"
+            sendEvent(name: "sensitive", value: "", displayed: false, isStateChange: true) // There is no sensitive level for off
+            runIn(5, updateTiles) // Update the alarm status on the tiles after 5 seconds giving it time to register
+            return
+        }
+        parameter = 7 + currentModeValue
+    } else {
+        log.warn "Unsupported device with MSR $state.MSR, Alarm Sensitivity feature not supported"
+        sendEvent(name: "sensitive", value: "", displayed: false) // Not supported
         runIn(5, updateTiles) // Update the alarm status on the tiles after 5 seconds giving it time to register
-    	return
+        return
     }
     
-	secure(zwave.configurationV1.configurationGet(parameterNumber: (7 + currentModeValue)))
+	security ? secure(zwave.configurationV1.configurationGet(parameterNumber: parameter)) : zwave.configurationV1.configurationGet(parameterNumber: parameter).format()
 }
 
 def setSensitivity(String newMode) {
-    log.debug "Set Alarm Sensitivity"
+    log.debug "Set Alarm Sensitivity to $newMode"
 
-    if (!(device.currentState('sensitive')?.value && (device.currentState('alarm')?.value != "sensitive"))) { // Check if we have succesfully managed to read the feature state, if not then it isn't supported
+    if (!(device.currentState('sensitive')?.value && (device.currentState('alarm')?.value != "unknown"))) { // Check if we have succesfully managed to read the feature state, if not then it isn't supported
         log.warn "Unsupported device with MSR $state.MSR, Alarm Sensitivity feature not available"
-        sendEvent(name: "contactDeveloper", value: "Feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
+        sendEvent(name: "contactDeveloper", value: "Alarm Sensitivity feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
         return
     }
 
@@ -2557,30 +2507,50 @@ def setSensitivity(String newMode) {
         runIn(5, updateTiles) // Update the alarm status on the tiles after 5 seconds giving it time to register
         return
     }
+
+    def parameter
+    def value = []
+    def security = true
+    if (state.MSR?.startsWith("003B-")) { // Schlage lock
+        log.trace "Found Schlage"
+        int currentModeValue = modeMap[currentMode]
+        log.trace "SensitiveToggle Current Alarm mode is $currentMode -> $currentModeValue"
+        if (currentMode == "off") { // In off mode there is no sensitivity level
+            log.info "There is no sensitive level when alarm is in off mode"
+            sendEvent(name: "sensitive", value: "", displayed: false, isStateChange: true) // There is no sensitive level for off
+            runIn(5, updateTiles) // Update the alarm status on the tiles after 5 seconds giving it time to register
+            return
+        }
         
-    int currentModeValue = modeMap[currentMode]
-	log.debug "SensitiveToggle Current Alarm mode is $currentMode -> $currentModeValue"
-    if (currentMode == "off") { // In off mode there is no sensitivity level
-    	log.debug "There is no sensitive level when alarm is in off mode"
-        sendEvent(name: "sensitive", value: "", displayed: false, isStateChange: true) // There is no sensitive level for off
-        runIn(5, updateTiles) // Update the alarm status on the tiles after 5 seconds giving it time to register
-    	return
+        log.info "Set Alarm Sensitivity to $newMode -> ${[sensitiveMap[newMode]]}"
+        
+        parameter = 7 + currentModeValue
+        value = [sensitiveMap[newMode]]
+    } else {
+        log.warn "Unknown device with MSR $state.MSR, report it to developer"
+        sendEvent(name: "contactDeveloper", value: "Unknown lock. Contact developer, quote MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
+        return
     }
 
-	log.debug "Set Sensitivity setting Alarm Sensitivity to $newMode -> ${[sensitiveMap[newMode]]}"
-    
-    secureSequence([
-		zwave.configurationV1.configurationSet(parameterNumber: (7 + currentModeValue), configurationValue: [sensitiveMap[newMode]]),
-		zwave.configurationV1.configurationGet(parameterNumber: (7 + currentModeValue))
-    ], 5000)
+    if (security) {
+        secureSequence([
+            zwave.configurationV1.configurationSet(parameterNumber: parameter, configurationValue: value),
+            zwave.configurationV1.configurationGet(parameterNumber: parameter),
+        ], 5000)
+    } else {
+        delayBetween([
+            zwave.configurationV1.configurationSet(parameterNumber: parameter, configurationValue: value).format(),
+            zwave.configurationV1.configurationGet(parameterNumber: parameter).format(),
+        ], 5000)
+    }
 }
 
 def sensitiveToggle() {
     log.debug "Set Alarm Sensitivity Toggle"
 
-    if (!(device.currentState('sensitive')?.value && (device.currentState('alarm')?.value != "sensitive"))) { // Check if we have succesfully managed to read the feature state, if not then it isn't supported
+    if (!(device.currentState('sensitive')?.value && (device.currentState('alarm')?.value != "unknown"))) { // Check if we have succesfully managed to read the feature state, if not then it isn't supported
         log.warn "Unsupported device with MSR $state.MSR, Alarm Sensitivity feature not available"
-        sendEvent(name: "contactDeveloper", value: "Feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
+        sendEvent(name: "contactDeveloper", value: "Alarm Sensitivity feature not supported, MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
         return
     }
 
@@ -2592,40 +2562,62 @@ def sensitiveToggle() {
         return
     }
         
-    int currentModeValue = modeMap[currentMode]
-	log.debug "SensitiveToggle Current Alarm mode is $currentMode -> $currentModeValue"
-    if (currentMode == "off") { // In off mode there is no sensitivity level
-    	log.debug "There is no sensitive level when alarm is in off mode"
-        sendEvent(name: "sensitive", value: "", displayed: false, isStateChange: true) // There is no sensitive level for off
-        runIn(5, updateTiles) // Update the alarm status on the tiles after 5 seconds giving it time to register
-    	return
+    def parameter
+    def value = []
+    def security = true
+    if (state.MSR?.startsWith("003B-")) { // Schlage lock
+        log.trace "Found Schlage"
+        int currentModeValue = modeMap[currentMode]
+        log.trace "SensitiveToggle Current Alarm mode is $currentMode -> $currentModeValue"
+        if (currentMode == "off") { // In off mode there is no sensitivity level
+            log.info "There is no sensitive level when alarm is in off mode"
+            sendEvent(name: "sensitive", value: "", displayed: false, isStateChange: true) // There is no sensitive level for off
+            runIn(5, updateTiles) // Update the alarm status on the tiles after 5 seconds giving it time to register
+            return
+        }
+
+        def currentSensitive = device.currentState("sensitive")?.value
+        log.trace "SensitiveToggle Current Alarm sensitivity is $currentSensitive"
+        def SensitiveOrder = sensitives()
+        def next = { SensitiveOrder[SensitiveOrder.indexOf(it) + 1] ?: SensitiveOrder[0] }
+        def nextSensitive = next(currentSensitive)
+
+        log.info "Toggling Alarm Sensitivity to $nextSensitive -> ${sensitiveMap[nextSensitive]}"
+
+        parameter = 7 + currentModeValue
+        value = [sensitiveMap[nextSensitive]]
+    } else {
+        log.warn "Unknown device with MSR $state.MSR, report it to developer"
+        sendEvent(name: "contactDeveloper", value: "Unknown lock. Contact developer, quote MSR $state.MSR", isStateChange: true, displayed: true) // Report to dev with MSR
+        return
     }
-    
-	def currentSensitive = device.currentState("sensitive")?.value
-	log.debug "SensitiveToggle Current Alarm sensitivity is $currentSensitive"
-	def SensitiveOrder = sensitives()
-	def next = { SensitiveOrder[SensitiveOrder.indexOf(it) + 1] ?: SensitiveOrder[0] }
-	def nextSensitive = next(currentSensitive)
-    
-    log.debug "Setting Alarm sensitivity to $nextSensitive -> ${sensitiveMap[nextSensitive]}"
-    
-	secureSequence([
-		zwave.configurationV1.configurationSet(parameterNumber: (7 + currentModeValue), configurationValue: [sensitiveMap[nextSensitive]]),
-		zwave.configurationV1.configurationGet(parameterNumber: (7 + currentModeValue))
-	], 5000)
+
+    if (security) {
+        secureSequence([
+            zwave.configurationV1.configurationSet(parameterNumber: parameter, configurationValue: value),
+            zwave.configurationV1.configurationGet(parameterNumber: parameter),
+        ], 5000)
+    } else {
+        delayBetween([
+            zwave.configurationV1.configurationSet(parameterNumber: parameter, configurationValue: value).format(),
+            zwave.configurationV1.configurationGet(parameterNumber: parameter).format(),
+        ], 5000)
+    }
 }
 
 def getBatteryState() {
     // Some locks implement non secure reading of battery
+    def security = true
+    
     if (state.MSR?.startsWith("0230-")) { // IDLock
-        zwave.batteryV1.batteryGet().format()
-    } else {
-        secure(zwave.batteryV1.batteryGet())
+        security = false
     }
+    
+    security ? secure(zwave.batteryV1.batteryGet()) : zwave.batteryV1.batteryGet().format()
 }
 
 private configureLock() {
-    log.debug "$device.displayName: Configuring lock settings"
+    log.trace "$device.displayName: Configuring lock settings"
     def map = null
     
     if (state.MSR?.startsWith("003B-")) { // Schlage lock
@@ -2651,7 +2643,7 @@ private yaleConfigureLock() {
     
     if (yaleWrongCodeLimit) {
         if (yaleWrongCodeLimit >=1 && yaleWrongCodeLimit <= 7) {
-            log.debug "Setting Wrong Code Tamper Alert threshold to $yaleWrongCodeLimit"
+            log.info "Setting Wrong Code Tamper Alert threshold to $yaleWrongCodeLimit"
 
             cmds << zwave.configurationV1.configurationSet(parameterNumber: 4, configurationValue: [yaleWrongCodeLimit])
             cmds << zwave.configurationV1.configurationGet(parameterNumber: 4)
@@ -2662,7 +2654,7 @@ private yaleConfigureLock() {
 
     if (yaleRelockTime) {
         if (yaleRelockTime >=5 && yaleRelockTime <= 255) {
-            log.debug "Setting Auto Relock time to $yaleRelockTime seconds"
+            log.info "Setting Auto Relock time to $yaleRelockTime seconds"
 
             cmds << zwave.configurationV1.configurationSet(parameterNumber: 3, configurationValue: [yaleRelockTime])
             cmds << zwave.configurationV1.configurationGet(parameterNumber: 3)
@@ -2671,7 +2663,7 @@ private yaleConfigureLock() {
         }
     }
     
-    log.debug "${yaleDPS ? "Enabling" : "Disabling"} DPS functionality"
+    log.info "${yaleDPS ? "Enabling" : "Disabling"} DPS functionality"
     cmds << zwave.configurationV1.configurationSet(parameterNumber: 19, configurationValue: [yaleDPS ? 255 : 0])
     cmds << zwave.configurationV1.configurationGet(parameterNumber: 19)
     
@@ -2706,9 +2698,9 @@ private danaLockConfigureLock() {
     if (danaBrakeGoBack != null && danaBrakeGoBack != "") {
         if (danaBrakeGoBack >=0 && danaBrakeGoBack <= 15) {
             if (danaBrakeGoBack == 0) {
-                log.debug "Disabling Brake & Go back"
+                log.info "Disabling Brake & Go back"
             } else {
-                log.debug "Setting Brake & Go Back time to $danaBrakeGoBack seconds"
+                log.info "Setting Brake & Go Back time to $danaBrakeGoBack seconds"
             }
 
             cmds << zwave.configurationV1.configurationSet(parameterNumber: 10, configurationValue: [danaBrakeGoBack])
@@ -2720,9 +2712,9 @@ private danaLockConfigureLock() {
     
     if (danaTurnGo != null) {
         if (danaTurnGo) {
-            log.debug "Enabling Turn & Go"
+            log.info "Enabling Turn & Go"
         } else {
-            log.debug "Disabling Turn & Go"
+            log.info "Disabling Turn & Go"
         }
 
         cmds << zwave.configurationV1.configurationSet(parameterNumber: 9, configurationValue: [danaTurnGo ? 1 : 0])
@@ -2731,7 +2723,7 @@ private danaLockConfigureLock() {
     
     if (danaTurnSpeed) {
         if (danaTurnSpeed >=1 && danaTurnSpeed <= 5) {
-            log.debug "Setting speed to $danaTurnSpeed"
+            log.info "Setting speed to $danaTurnSpeed"
 
             cmds << zwave.configurationV1.configurationSet(parameterNumber: 2, configurationValue: [danaTurnSpeed])
             cmds << zwave.configurationV1.configurationGet(parameterNumber: 2)
